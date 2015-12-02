@@ -2,7 +2,7 @@
 Civ-like game in development
 
 #Technologies
-Written in C++
+Written in C++,
 Libraries: SDL2, SDL_images 2, SDL_ttf 2
 
 # Tutorials
