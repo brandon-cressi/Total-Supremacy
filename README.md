@@ -1,5 +1,5 @@
 # Total-Supremacy
-Civ-like game in development
+A game inspired by the civilization series that is currently in development.
 
 #Technologies
 Written in C++,
