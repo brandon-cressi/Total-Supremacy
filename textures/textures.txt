@@ -1,0 +1,21 @@
+100 80
+plain 0 plain.png
+ocean 1 ocean.png
+desert 2 desert.png
+forest 3 forest.png
+jungle 4 jungle.png
+marsh 5 marsh.png
+hill 6 hill.png
+mountain 7 mountain.png
+Cursor 8 cursor.png
+Selector 9 template.png
+beach1 10 beach1.png
+beach2 11 beach2.png
+beach3 12 beach3.png
+beach4 13 beach4.png
+beach5 14 beach5.png
+beach6 15 beach6.png
+beach7 16 beach7.png
+beach8 17 beach8.png
+beach9 18 beach9.png
+beach10 19 beach10.png

@@ -1,0 +1,43 @@
+C oil
+C coal
+C horses
+C cattle
+C grain
+C vegetables
+C iron
+C copper
+C gold
+0 plain
+
+C oil
+C fish
+1 ocean
+
+C oil
+C coal
+C camels
+C iron
+C copper
+C gold
+2 desert
+
+C oil
+C coal
+C fruit
+C prey
+C iron
+C copper
+C gold
+3 forest
+
+C oil
+C coal
+C prey
+C iron
+C copper
+C gold
+4 jungle
+
+5 marsh
+
+6 hill
