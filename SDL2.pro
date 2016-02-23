@@ -3,17 +3,19 @@ CONFIG += console c++11
 CONFIG -= app_bundle
 CONFIG -= qt
 
-SOURCES += main.cpp \
-    texture.cpp \
-    button.cpp \
-    tile.cpp \
-    window.cpp \
-    checkbox.cpp
-LIBS += -L/usr/include -lSDL2 -lSDL2_image -lSDL2_ttf -lnoise
+SOURCES += \
+    interface/button.cpp \
+    interface/checkbox.cpp \
+    interface/texture.cpp \
+    interface/tile.cpp \
+    interface/window.cpp \
+    main.cpp
+
+LIBS += -L/framework -lSDL2 -lSDL2_image -lSDL2_ttf -lnoise
 
 HEADERS += \
-    texture.h \
-    button.h \
-    tile.h \
-    window.h \
-    checkbox.h
+    interface/button.h \
+    interface/checkbox.h \
+    interface/texture.h \
+    interface/tile.h \
+    interface/window.h

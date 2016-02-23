@@ -10,7 +10,7 @@
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
 
-//Custom Classes
+//Custom Interface Classes
 #include "interface/texture.h"
 #include "interface/button.h"
 #include "interface/window.h"
