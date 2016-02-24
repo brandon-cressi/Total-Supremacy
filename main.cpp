@@ -6,18 +6,18 @@
 #include <map>
 
 //SDL2 C++ Libraries
-#include <SDL2/SDL_image.h>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
 
-//Custom Classes
-#include "texture.h"
-#include "button.h"
-#include "window.h"
-#include "tile.h"
-#include "checkbox.h"
+//Custom Interface Classes
+#include "interface/texture.h"
+#include "interface/button.h"
+#include "interface/window.h"
+#include "interface/tile.h"
+#include "interface/checkbox.h"
 
-//Screen dimension constants
+//Screen dimension constants (will default to 640x480 if none are defined in config.ini
 int SCREEN_WIDTH = 640;
 int SCREEN_HEIGHT = 480;
 int SCROLL_DEPTH=100;
@@ -28,10 +28,10 @@ SDL_Window* window = NULL;
 SDL_Surface* ScreenSurface = NULL;
 
 struct Mouse_Resources {
-    int x,y;
-    int tile_location_x, tile_location_y;
-    int x_modifier=0;
-    int y_modifier=0;
+    int x,y; //current x and y coordinates
+    int tile_location_x, tile_location_y; //current tile coordinates
+    int x_modifier=0; //x scroll modifier
+    int y_modifier=0; //y scroll modifier
 };
 
 struct Terrain_Resources {
@@ -338,56 +338,57 @@ bool map_parse(std::vector<std::pair<std::string,std::vector<std::string>>> tile
 
 //---------Camera_Functions------------------------
 
-void getMouseLocation(Mouse_Resources &Mouse_Resource, int width, int height) {
-    int x_half=width*.5;
-    int y_rect=height*.7;
-    int y_tri=height-y_rect;
-    int x=Mouse_Resource.x-Mouse_Resource.x_modifier; int y=Mouse_Resource.y-30-Mouse_Resource.y_modifier;
-    int tmp_y=y%y_rect;
-    Mouse_Resource.tile_location_y=y/(y_rect);
-    if(tmp_y<=y_tri) {
-        if(Mouse_Resource.tile_location_y%2==0) {
-            if(x%width<=x_half) {
-                float slope=(x%width)*.48;
-                //left
-                if(slope<(y_tri-tmp_y)) {
-                    Mouse_Resource.tile_location_y-=1;
-                }
-            }
-            else {
-                float slope=((width-x%width)*.48);
-                //right
-                if(slope<(y_tri-tmp_y)) {
-                    Mouse_Resource.tile_location_y-=1;
-                }
+//This function returns the tile location that the mouse is currently hovering over. Each hexagon is split into rectangles
+//to find the general mouse position. After that, each triangle of the hexagon is checked and the general mouse position is
+//fixed.
 
+void getMouseLocation(Mouse_Resources &Mouse_Resource, int width, int height) {
+    int x_half=width*.5; //half the tile width
+    int y_rect=height*.7; //70% of the tile height
+    int y_tri=height-y_rect; //top 30% of the tile
+    int x=Mouse_Resource.x-Mouse_Resource.x_modifier; int y=Mouse_Resource.y-30-Mouse_Resource.y_modifier; //get mouse x,y
+    int tmp_y=y%y_rect; //count how much remain after 70%s go into the y coordinate of mouse
+    Mouse_Resource.tile_location_y=y/(y_rect); //set y tile location to remainder of 70%s
+    //these if statements deal with the triangle portion of the hexagons
+    if(Mouse_Resource.tile_location_y%2==0) {  //even row =(when row is further left)
+        if(x%width<=x_half) { //left half
+            float line=(x%width)*.48;//slope of hex triangle is .48, used to calculate line
+            if(line<(y_tri-tmp_y)) {//if mouse position is above the line, the tile position is corrected
+                Mouse_Resource.tile_location_y-=1;
             }
         }
-        else if(Mouse_Resource.tile_location_y%2==1) {
-            if((x-x_half)%width<=x_half) {
-                //left
-                float slope=((x-x_half)%width)*.48;
-                if(slope<(y_tri-tmp_y)) {
-                    Mouse_Resource.tile_location_y-=1;
-                }
+        else { //right half
+            float slope=((width-x%width)*.48); //slope of hex triangle is .48, used to calculate line
+            if(slope<(y_tri-tmp_y)) {//if mouse position is above the line, the tile position is corrected
+                Mouse_Resource.tile_location_y-=1;
             }
-            else {
-                //right
-                float slope=((width-(x-x_half)%width)*.48);
-                if(slope<(y_tri-tmp_y)) {
-                    Mouse_Resource.tile_location_y-=1;
-                }
+
+        }
+    }
+    else if(Mouse_Resource.tile_location_y%2==1) { //odd row =(when row is further right)
+        if((x-x_half)%width<=x_half) { //left half
+            float slope=((x-x_half)%width)*.48; //slope of hex triangle is .48, used to calculate line
+            if(slope<(y_tri-tmp_y)) {//if mouse position is above the line, the tile position is corrected
+                Mouse_Resource.tile_location_y-=1;
+            }
+        }
+        else { //right half
+            float slope=((width-(x-x_half)%width)*.48); //slope of hex triangle is .48, used to calculate line
+            if(slope<(y_tri-tmp_y)) {//if mouse position is above the line, the tile position is corrected
+                Mouse_Resource.tile_location_y-=1;
             }
         }
     }
-    if(Mouse_Resource.tile_location_y%2==0) {
+    if(Mouse_Resource.tile_location_y%2==0) { //set width for even rows
         Mouse_Resource.tile_location_x=x/width*width;
     }
-    else {
+    else { //set width for odd rows
         Mouse_Resource.tile_location_x=((x-x_half)/width*width)+x_half;
     }
-    Mouse_Resource.tile_location_y=Mouse_Resource.tile_location_y*y_rect;
+    Mouse_Resource.tile_location_y=Mouse_Resource.tile_location_y*y_rect;//set height
 }
+
+//closes and frees sdl assets
 
 void close() {
     SDL_DestroyRenderer(Renderer);
@@ -399,29 +400,31 @@ void close() {
     TTF_Quit();
 }
 
-void move_camera(Mouse_Resources &Mouse_Resource) { //this function moves the camera when the user hovers over the edge of the map
-    if(Mouse_Resource.x<10){//Left Stronger
+//this function moves the camera when the user hovers over the edge of the map
+
+void move_camera(Mouse_Resources &Mouse_Resource) {
+    if(Mouse_Resource.x<10){//Moves Left based on proximity to edge
         Mouse_Resource.x_modifier+=2;
     }
-    else if(Mouse_Resource.x<20){//Left
+    else if(Mouse_Resource.x<20){//Moves Left based on proximity to edge
         Mouse_Resource.x_modifier+=1;
     }
-    if(Mouse_Resource.x>SCREEN_WIDTH-10) {//Right Stronger
+    if(Mouse_Resource.x>SCREEN_WIDTH-10) {//Moves Right based on proximity to edge
         Mouse_Resource.x_modifier-=2;
     }
-    else if(Mouse_Resource.x>SCREEN_WIDTH-20) {//Right
+    else if(Mouse_Resource.x>SCREEN_WIDTH-20) {//Moves Right based on proximity to edge
         Mouse_Resource.x_modifier-=1;
     }
-    if(Mouse_Resource.y<40 && Mouse_Resource.y>30) {//Top Stronger
+    if(Mouse_Resource.y<40 && Mouse_Resource.y>30) {//Moves Up based on proximity to edge
         Mouse_Resource.y_modifier+=2;
     }
-    else if(Mouse_Resource.y<50 && Mouse_Resource.y>30) {//Top
+    else if(Mouse_Resource.y<50 && Mouse_Resource.y>30) {//Moves Up based on proximity to edge
         Mouse_Resource.y_modifier+=1;
     }
-    if(Mouse_Resource.y>SCREEN_HEIGHT-10) {//Bottom Stronger
+    if(Mouse_Resource.y>SCREEN_HEIGHT-10) {//Moves Down based on proximity to edge
         Mouse_Resource.y_modifier-=2;
     }
-    else if(Mouse_Resource.y>SCREEN_HEIGHT-20) {//Bottom
+    else if(Mouse_Resource.y>SCREEN_HEIGHT-20) {//Moves Down based on proximity to edge
         Mouse_Resource.y_modifier-=1;
     }
     if(Mouse_Resource.y_modifier>0) { //Prevents the user from leaving the map
@@ -432,17 +435,25 @@ void move_camera(Mouse_Resources &Mouse_Resource) { //this function moves the ca
     }
 }
 
-void change_zoom(std::vector<Texture> &textures,std::vector<Tile> &map_info, int &width, int &height) {
-    int new_w, old_w, new_h, old_h;
+void change_zoom(std::vector<Tile> &map_info, int &width, int &height) {
+    int new_w, old_w, new_h, old_h; //storage for new and old
+
     old_w=width;
     old_h=height;
+
     int old_y=old_h*.7;
+
     new_w=100*SCROLL_DEPTH/100;
-    int new_y=new_w*.7*4./5.;
+    new_h=80*SCROLL_DEPTH/100;
+
+    int new_y=new_h*.7;
+
     int old_remainder=old_w/2;
     int new_remainder=new_w/2;
+
     width=new_w;
-    height=new_w*4./5.;
+    height=new_h;
+
     for(int i=0;i<map_info.size();i++) {
         if(map_info[i].returnX()%old_w==0) {
             map_info[i].setX((map_info[i].returnX()/old_w)*new_w);
@@ -512,6 +523,8 @@ int main(int argc, char* args[]) {
                         map.y=30;
                         map.w=SCREEN_WIDTH;
                         map.h=SCREEN_HEIGHT-30;
+
+                        SDL_Rect minimap_selector;
 
                         //Window Initializations
                         Window Terrain_Info(Renderer,100,100,100,100);
@@ -585,7 +598,7 @@ int main(int argc, char* args[]) {
                                     SCROLL_DEPTH=100;
                                 }
                                 if(resize) {
-                                    change_zoom(Terrain_Resource.terrain_textures,Terrain_Resource.terrain_individual_information,Terrain_Resource.width,Terrain_Resource.height);
+                                    change_zoom(Terrain_Resource.terrain_individual_information,Terrain_Resource.width,Terrain_Resource.height);
                                 }
                                 resize=false;
                             }
@@ -645,14 +658,8 @@ int main(int argc, char* args[]) {
                             for(int i=0;i<Minimap_Resource.minimap_information.size();i++) {
                                 Minimap_Resource.minimap_textures[Minimap_Resource.minimap_information[i].first].render(Renderer,Minimap_Resource.minimap_information[i].second.first,Minimap_Resource.minimap_information[i].second.second,Minimap_Resource.size,Minimap_Resource.size);
                             }
-                            SDL_Rect place={-Mouse_Resource.x_modifier/float(SCROLL_DEPTH)*10,-Mouse_Resource.y_modifier/float(SCROLL_DEPTH)*10*79/100,map.w/float(SCROLL_DEPTH)*10*92/100.,float(map.h)/float(SCROLL_DEPTH)*10*82/100};
-                            SDL_RenderDrawRect(Renderer,&place);
-                            if(up) {
-                                if(Mouse_Resource.x>Map.returnUsuableViewport().x && Mouse_Resource.x<Map.returnUsuableViewport().x+Map.returnWidth() && Mouse_Resource.y<Map.returnUsuableViewport().y+Map.returnHeight() && Mouse_Resource.y>Map.returnUsuableViewport().y) {
-                                    Mouse_Resource.x_modifier=-(Mouse_Resource.x-Map.returnX())*float(SCROLL_DEPTH)/10;
-                                    Mouse_Resource.y_modifier=-(Mouse_Resource.y-Map.returnY())*float(SCROLL_DEPTH)/10/79*100;
-                                }
-                            }
+                            minimap_selector={-Mouse_Resource.x_modifier/float(SCROLL_DEPTH)*9,-Mouse_Resource.y_modifier/float(Terrain_Resource.height)*8.5,map.w/float(Terrain_Resource.width)*9.5,float(map.h)/float(Terrain_Resource.height)*9};
+                            SDL_RenderDrawRect(Renderer,&minimap_selector);
                             SDL_RenderPresent(Renderer);
                         }
                     }
