@@ -14,6 +14,25 @@ Texture::Texture() {
     height = 0;
 }
 
+bool Texture::createBlank( SDL_Renderer* Renderer, int width, int height, SDL_TextureAccess access ) {
+    texture=NULL;
+    //Create uninitialized texture
+    texture = SDL_CreateTexture(Renderer, SDL_PIXELFORMAT_RGBA8888, access, width, height );
+    if( texture == NULL ) {
+        printf( "Unable to create blank texture! SDL Error: %s\n", SDL_GetError() );
+    }
+    else {
+        width = width;
+        height = height;
+    }
+    return texture != NULL;
+}
+
+void Texture::setAsRenderTarget(SDL_Renderer* Renderer) {
+    //Make self render target
+    SDL_SetRenderTarget(Renderer,texture );
+}
+
 Texture::Texture(SDL_Renderer* Renderer, std::string path) {
     //Initialize
     loadFromFile(Renderer, path);
@@ -67,7 +86,6 @@ bool Texture::loadFromFile(SDL_Renderer* Renderer, std::string path) {
 
 bool Texture::setTexture(SDL_Texture *t) {
     bool success=true;
-    free();
     int w, h;
     SDL_QueryTexture(t,NULL,NULL,&w,&h);
     width=w;
@@ -78,11 +96,9 @@ bool Texture::setTexture(SDL_Texture *t) {
 
 void Texture::free() {
     //Free texture if it exists
-    if(texture != NULL) {
         texture = NULL;
         width = 0;
         height = 0;
-    }
 }
 
 void Texture::render(SDL_Renderer* Renderer, int x, int y, int w, int h) {

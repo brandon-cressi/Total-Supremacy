@@ -133,7 +133,7 @@ bool initWindow() {
     }
     else {
         //Create renderer for window
-        Renderer = SDL_CreateRenderer( window, -1, SDL_RENDERER_ACCELERATED || SDL_WINDOW_ALLOW_HIGHDPI || SDL_RENDERER_PRESENTVSYNC);
+        Renderer = SDL_CreateRenderer( window, -1, SDL_RENDERER_ACCELERATED);
         if(Renderer == NULL){
             printf( "Renderer could not be created! SDL Error: %s\n", SDL_GetError() );
             return false;
@@ -372,6 +372,12 @@ bool move_camera(Mouse_Resources &Mouse_Resource) {
         Mouse_Resource.x_modifier=0;
         moved=1;
     }
+    if(Mouse_Resource.x_modifier<-50*50-25+SCREEN_WIDTH) {
+        Mouse_Resource.x_modifier=-50*50-25+SCREEN_WIDTH;
+    }
+    if(Mouse_Resource.y_modifier<-50*28-42+SCREEN_HEIGHT) {
+        Mouse_Resource.y_modifier=-50*28-42+SCREEN_HEIGHT;
+    }
 }
 
 void change_zoom(Terrain_Resources terrain_resources, std::vector<Tile> &map_info, int &width, int &height) {
@@ -412,34 +418,29 @@ std::string getLower(std::map<std::string,Tile> tiles, Tile tile, int j) {
     return tile.returnName();
 }
 
-void create_map_layers(std::vector<Texture> &layers, Texture &minimap, Terrain_Resources Terrain_Resource, Mouse_Resources Mouse_Resource,std::map<std::string,std::vector<Texture>> textures,std::map<std::string,Tile> tiles) {
-    SDL_Texture* tmp1=SDL_CreateTexture(Renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,(50*50+25)/5,(50*28+12)/5);
-    for(int j=0; j<4;j++) {
-         SDL_Texture* tmp=SDL_CreateTexture(Renderer,SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_TARGET,50*50+25,50*28+12);
-         SDL_SetRenderTarget(Renderer, tmp);
-         SDL_SetTextureBlendMode(tmp, SDL_BLENDMODE_BLEND);
-         SDL_Rect frame={0,0,(50*50+25)/5,(50*28+12)/5};
-         SDL_SetRenderTarget(Renderer,tmp);
-         std::string name;
-         Tile tile;
-         for(int i=0;i<Terrain_Resource.terrain_individual_information.size();i++) {
-             name=Terrain_Resource.terrain_individual_information[i].returnName();
-             tile=Terrain_Resource.terrain_individual_information[i];
-             if(Terrain_Resource.terrain_individual_information[i].returnLevel()==j){
-                 textures.find(name)->second[tile.returnIndex()].render(Renderer, tile.returnX()+Mouse_Resource.x_modifier, tile.returnY()+Mouse_Resource.y_modifier+Terrain_Resource.height-textures.find(name)->second[tile.returnIndex()].getHeight());
-             }
-             else if(Terrain_Resource.terrain_individual_information[i].returnLevel()>j) {
-                 textures.find(getLower(tiles,tile,j))->second[0].render(Renderer, tile.returnX()+Mouse_Resource.x_modifier, tile.returnY()+Mouse_Resource.y_modifier+Terrain_Resource.height-textures.find(name)->second[tile.returnIndex()].getHeight()+Terrain_Resource.terrain_individual_information[i].returnLevel()*10-j*10);
-             }
-         }
-         SDL_SetRenderTarget(Renderer,tmp1);
-         SDL_RenderCopy(Renderer,tmp,NULL,&frame);
-         SDL_SetTextureBlendMode(tmp1, SDL_BLENDMODE_NONE);
-         layers.push_back(Texture(tmp));
-     }
-    SDL_SetTextureBlendMode(tmp1, SDL_BLENDMODE_NONE);
-    minimap.setTexture(tmp1);
-     SDL_SetRenderTarget(Renderer,NULL);
+void create_map_layers(Texture &layers, Texture &minimap, Terrain_Resources &Terrain_Resource, Mouse_Resources &Mouse_Resource,std::map<std::string,std::vector<Texture>> textures,std::map<std::string,Tile> tiles) {
+    SDL_SetRenderDrawColor(Renderer,0,0,0,255);
+    minimap.createBlank(Renderer,(50*50+25)/5,(50*28+12)/5,SDL_TEXTUREACCESS_TARGET);
+    layers.createBlank(Renderer,(50*50+25),(50*28+12),SDL_TEXTUREACCESS_TARGET);
+    std::string name; Tile tile; int placex, placey;
+    SDL_Rect l = {0,0,50*50+25,50*28+12};
+    layers.setAsRenderTarget(Renderer);
+    SDL_RenderFillRect(Renderer,&l);
+    l.w=l.w/5;
+    l.h=l.h/5;
+    for(int i=0;i<Terrain_Resource.terrain_individual_information.size();i++) {
+        name=Terrain_Resource.terrain_individual_information[i].returnName();
+        tile=Terrain_Resource.terrain_individual_information[i];
+        placex=tile.returnX()+Mouse_Resource.x_modifier;
+        placey=tile.returnY()+Mouse_Resource.y_modifier+Terrain_Resource.height-textures.find(name)->second[tile.returnIndex()].getHeight();
+        textures.find(name)->second[tile.returnIndex()].render(Renderer,placex,placey);
+    }
+    minimap.setAsRenderTarget(Renderer);
+    SDL_RenderFillRect(Renderer,&l);
+    SDL_Rect rect = {0,0,(50*50+25)/5,(50*28+12)/5};
+    layers.renderRect(Renderer,&rect,NULL);
+    SDL_SetRenderTarget(Renderer,NULL);
+    SDL_SetRenderDrawColor(Renderer,255,255,255,255);
 }
 
 int main(int argc, char* args[]) {
@@ -448,7 +449,7 @@ int main(int argc, char* args[]) {
     std::map<std::string,std::vector<Texture>> textures;
     std::map<std::string,Tile> tiles;
     Texture minimap;
-    std::vector<Texture> layers;
+    Texture layers;
     srand(time(NULL));
     if(!initConfig()) {//Loads basic settings
         printf( "Failed to initialize config!\n" );
@@ -506,6 +507,7 @@ int main(int argc, char* args[]) {
 
                         SDL_Rect minimap_selector;
                         SDL_Rect map22;
+                        SDL_Rect map33;
 
                         //Window Initializations
                         Window Terrain_Info(Renderer,100,100,100,100);
@@ -518,11 +520,11 @@ int main(int argc, char* args[]) {
                         std::string name1;
 
                         //TTF Initializations
-                        TTF_Font* Font=NULL;
-                        Font=TTF_OpenFont("../SDL2_project/assets/ttf/default.ttf", 12);
-                        if(Font == NULL ) {
-                            printf( "Failed to load lazy font! SDL_ttf Error: %s\n", TTF_GetError() );
-                        }
+                        //TTF_Font* Font=NULL;
+                        //Font=TTF_OpenFont("../SDL2_project/assets/ttf/default.ttf", 12);
+                        //if(Font == NULL ) {
+                            //printf( "Failed to load lazy font! SDL_ttf Error: %s\n", TTF_GetError() );
+                        //}
                         SDL_Color textColor = {0, 0, 0};
 
                         //Map Initialization
@@ -543,9 +545,13 @@ int main(int argc, char* args[]) {
                         int numFrames = 0;
                         int placex,placey;
                         bool moved;
+                        Uint32 startTime;
+                        Uint32 endTime;
+                        const Uint8* currentKeyStates;
+                        SDL_Rect window0_rect;
 
                         while(!quit) {
-                            Uint32 startTime = SDL_GetTicks();
+                            startTime = SDL_GetTicks();
                             name=" ";
                             overlap=false;
                             down=false;
@@ -556,8 +562,9 @@ int main(int argc, char* args[]) {
                             moved=move_camera(Mouse_Resource);
                             overlap=Terrain_Info.returnInside();
 
+
                             while( SDL_PollEvent( &e ) != 0 ) {
-                                const Uint8* currentKeyStates = SDL_GetKeyboardState( NULL );
+                                currentKeyStates = SDL_GetKeyboardState( NULL );
                                 Terrain_Info.handleEvent(&e);
                                 Map.handleEvent(&e);
                                 test.handleEvent(&e);
@@ -608,12 +615,12 @@ int main(int argc, char* args[]) {
 
                             //Map Viewport
                             SDL_RenderSetViewport(Renderer,&map);
-                            for(int i=0;i<Terrain_Resource.terrain_individual_information.size();i++) {
+                            /*for(int i=0;i<Terrain_Resource.terrain_individual_information.size();i++) {
                                 name=Terrain_Resource.terrain_individual_information[i].returnName();
                                 tile=Terrain_Resource.terrain_individual_information[i];
                                 placex=tile.returnX()+Mouse_Resource.x_modifier;
                                 placey=tile.returnY()+Mouse_Resource.y_modifier+Terrain_Resource.height-textures.find(name)->second[tile.returnIndex()].getHeight();
-                                if(placex+50>0 && placey+100>0 && placex<map.w && placey<map.h) {
+                                if(placex+50>0 && placey+50>0 && placex<map.w && placey<map.h) {
                                         textures.find(name)->second[tile.returnIndex()].render(Renderer,placex,placey);
                                     if(test.getActivate()) {
                                         textures.find("random")->second[0].render(Renderer, placex, placey, Terrain_Resource.width, Terrain_Resource.height);                               }
@@ -625,31 +632,35 @@ int main(int argc, char* args[]) {
                                         }
                                     }
                                 }
-                            }
+                            }*/
+                            map22.x-=Mouse_Resource.x_modifier;
+                            map22.y-=Mouse_Resource.y_modifier;
+                            map22.w=map.w;
+                            map22.h=map.h;
+                            map33= map;
+                            map33.y=0;
 
+                            layers.renderRect(Renderer,&map33,&map22);
                             //Screen Viewport
                             SDL_RenderSetViewport(Renderer, &screen);
                             Terrain_Info.render(Renderer);
                             Map.render(Renderer);
-                            SDL_Rect window0_rect=Terrain_Info.returnUsuableViewport();
+                            window0_rect=Terrain_Info.returnUsuableViewport();
                             SDL_RenderSetViewport(Renderer,&window0_rect);
-                            int counter = loadFromRenderedText(Renderer,name,Font,textColor,0,0);
-                            if(resources.size()>0) {
-                                for(int i=0; i<resources.size();i++) {
-                                    counter+=loadFromRenderedText(Renderer,resources[i],Font,textColor,0,counter);
-                                }
-                            }
+                            //int counter = loadFromRenderedText(Renderer,name,Font,textColor,0,0);
                             resources.clear();
                             window0_rect=Map.returnUsuableViewport();
                             SDL_RenderSetViewport(Renderer,&window0_rect);
                             map22={0,0,std::min(window0_rect.w,(50*50+25)/5),std::min(window0_rect.h,(50*28+12)/5)};
                             minimap_selector={-Mouse_Resource.x_modifier/5,-Mouse_Resource.y_modifier/5,map.w/5,map.h/5};
-
                             minimap.renderRect(Renderer,&map22,&map22);
                             SDL_RenderDrawRect(Renderer,&minimap_selector);
                             SDL_RenderPresent(Renderer);
                             numFrames++;
-                            std::cout << 1000/(SDL_GetTicks()-startTime) << " ";
+                            endTime=SDL_GetTicks();
+                            if(endTime-startTime>0) {
+                                std::cout << 1000/(endTime-startTime) << " ";
+                            }
                         }
                     }
                 }

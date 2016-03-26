@@ -10,6 +10,8 @@ class Texture {
         ~Texture(); //Deallocates Memory
 
         //Rendering & Events
+        bool createBlank( SDL_Renderer* Renderer, int width, int height, SDL_TextureAccess access);
+        void setAsRenderTarget(SDL_Renderer* Renderer);
         bool loadFromFile(SDL_Renderer* Renderer, std::string path); //Load texture from image file
         void render(SDL_Renderer* Renderer, int x, int y, int w=0, int h=0); //Renders the texture
         void renderRect(SDL_Renderer* Renderer, SDL_Rect* dstrect, SDL_Rect* srcrect);

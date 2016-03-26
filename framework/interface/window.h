@@ -35,6 +35,7 @@ public:
 private:
     //Window Parameters
     int x, y, width, height;
+    int max_w, max_h;
 
     //Window Settings
     bool move, resize, inside, hide;
