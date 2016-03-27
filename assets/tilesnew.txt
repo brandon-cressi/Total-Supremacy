@@ -1,0 +1,53 @@
+<plain
+>capacity 100
+>mobility 69
+>level 1
+>below shallow_ocean
+
+<desert
+>capacity 100
+>mobility 100
+>level 1
+>below shallow_ocean
+
+<hill
+>capacity 100
+>mobility 100
+>level 2
+>below plain
+
+<jungle
+>capacity 100
+>mobility 100
+>level 2
+>below plain
+
+<marsh
+>capacity 100
+>mobility 100
+>level 1
+>below shallow_ocean
+
+<mountain
+>capacity 100
+>mobility 100
+>level 3
+>below hill
+
+<shallow_ocean
+>capacity 100
+>mobility 100
+>level 0
+>below none
+
+<deep_ocean
+>capacity 100
+>mobility 100
+>level 0
+>below none
+
+<forest
+>capacity 100
+>mobility 100
+>level 2
+>below plain

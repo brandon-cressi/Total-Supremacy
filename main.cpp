@@ -4,18 +4,24 @@
 #include <fstream>
 #include <vector>
 #include <map>
+#include <stdlib.h>
 
 //SDL2 C++ Libraries
+
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
 
+//boost C++ Libraries
+
+#include <boost/filesystem.hpp>
+
 //Custom Interface Classes
-#include "interface/texture.h"
-#include "interface/button.h"
-#include "interface/window.h"
-#include "interface/tile.h"
-#include "interface/checkbox.h"
+#include "framework/interface/texture.h"
+#include "framework/interface/button.h"
+#include "framework/interface/window.h"
+#include "framework/interface/tile.h"
+#include "framework/interface/checkbox.h"
 
 //Screen dimension constants (will default to 640x480 if none are defined in config.ini
 int SCREEN_WIDTH = 640;
@@ -36,19 +42,10 @@ struct Mouse_Resources {
 
 struct Terrain_Resources {
     int size=100;
-    int width, height;
-    std::vector<Texture> terrain_textures;
+    int width=50;
+    int height=40;
     std::vector<Tile> terrain_individual_information;
     std::vector<std::pair<std::string,std::vector<std::string>>> terrain_type_information;
-};
-
-struct Minimap_Resources {
-    int size=10;
-    int current_x,current_y, current_width, current_height;
-    int x_modifier=0;
-    int y_modifier=0;
-    std::vector<Texture> minimap_textures;
-    std::vector<std::pair<int,std::pair<int,int>>> minimap_information;
 };
 
 //---------Text_Functions------------------------
@@ -88,19 +85,18 @@ int loadFromRenderedText(SDL_Renderer* Renderer,  std::string textureText, TTF_F
 
 
 bool initConfig() {
-    bool success = true;
     std::ifstream cfg("..//SDL2//config.ini");
     if (!cfg.good()) {
         printf("Can't open config.ini.\n");
-        success=false;
+        return false;
     }
     std::map<std::string,std::string> config; //Stores the config options in a map
-    std::string store1, store2;
+    std::string parameter, value;
     while(!cfg.eof()) {
-        cfg >> store1;
-        if(store1[0]!='[') {
-            cfg >> store2;
-            config.insert(std::pair<std::string,std::string>(store1,store2));
+        cfg >> parameter;
+        if(parameter[0]!='[') {
+            cfg >> value;
+            config.insert(std::pair<std::string,std::string>(parameter,value));
         }
     }
     if(config.find("SCREEN_WIDTH")!=config.end()) { //Checks for SCREEN_WIDTH
@@ -109,40 +105,38 @@ bool initConfig() {
     if(config.find("SCREEN_HEIGHT")!=config.end()) { //Checks for SCREEN_HEIGHT
         SCREEN_HEIGHT=std::atoi(config.find("SCREEN_HEIGHT")->second.c_str());
     }
-    return success;
+    return true;
 }
 
 bool initSDL() {
-    bool success = true;
     if( SDL_Init( SDL_INIT_VIDEO ) < 0 ) {
         printf( "SDL could not initialize! SDL Error: %s\n", SDL_GetError() );
-        success = false;
+        return false;
     }
     int imgFlags = IMG_INIT_PNG;
     if(!(IMG_Init(imgFlags)&imgFlags)) {
         printf( "SDL_image could not initialize! SDL_image Error: %s\n", IMG_GetError());
-        success = false;
+        return false;
     }
     else {
         //Get window surface
         ScreenSurface = SDL_GetWindowSurface(window);
     }
-    return success;
+    return true;
 }
 
 bool initWindow() {
-    bool success = true;
     window = SDL_CreateWindow("SDL Test",SDL_WINDOWPOS_UNDEFINED,SDL_WINDOWPOS_UNDEFINED,SCREEN_WIDTH,SCREEN_HEIGHT,SDL_WINDOW_SHOWN);
     if( window == NULL ) {
         printf( "Window could not be created! SDL Error: %s\n", SDL_GetError() );
-        success = false;
+        return false;
     }
     else {
         //Create renderer for window
-        Renderer = SDL_CreateRenderer( window, -1, SDL_RENDERER_ACCELERATED );
+        Renderer = SDL_CreateRenderer( window, -1, SDL_RENDERER_ACCELERATED);
         if(Renderer == NULL){
             printf( "Renderer could not be created! SDL Error: %s\n", SDL_GetError() );
-            success = false;
+            return false;
         }
 
         else {
@@ -153,75 +147,74 @@ bool initWindow() {
             int imgFlags = IMG_INIT_PNG;
             if( !( IMG_Init( imgFlags ) & imgFlags ) ) {
                 printf( "SDL_image could not initialize! SDL_image Error: %s\n", IMG_GetError() );
-                success = false;
+                return false;
             }
 
             if( TTF_Init() == -1 ){
                 printf( "SDL_ttf could not initialize! SDL_ttf Error: %s\n", TTF_GetError() );
-                success = false;
+                return false;
             }
         }
     }
-    return success;
+    return true;
 }
 
-bool initTextures(Terrain_Resources &Terrain_Resource, std::vector<Texture> &minimap_textures) {
-    bool success=true;
-    std::ifstream textures("..//SDL2//textures//textures.txt");
-    if (!textures.good()) {
-        printf("Can't open tiles.txt.\n");
-        success=false;
+bool initTextures(std::map<std::string,std::vector<Texture>> &textures) {
+    boost::filesystem::path path("..//SDL2_project//assets//textures");
+    boost::filesystem::directory_iterator b(path), e;
+    std::vector<boost::filesystem::path> directory(b, e);
+    std::map<std::string,std::vector<Texture>> alltextures;
+    std::vector<Texture> tmp;
+    for(int i=0; i<directory.size();i++) {
+        b=boost::filesystem::directory_iterator(directory[i]), e;
+        std::vector<boost::filesystem::path> subtexture(b, e);
+        std::string s=directory[i].string();
+        s.replace(s.begin(),s.begin()+path.size()+1,"");
+        std::sort(subtexture.begin(),subtexture.end());
+        for(int j=0;j<subtexture.size();j++) {
+            if(subtexture[j].extension().string()==".png") {
+                tmp.push_back(Texture(Renderer,subtexture[j].string()));
+            }
+        }
+        alltextures.insert(std::pair<std::string,std::vector<Texture>>(s,tmp));
+        tmp.clear();
     }
-    std::string name, value, width, height, location;
-    textures >> width;
-    textures >> height;
-    Terrain_Resource.width=std::atoi(width.c_str());
-    Terrain_Resource.height=std::atoi(height.c_str());
-    while(!textures.eof()) {
-        textures >> name;
-        textures >> value;
-        textures >> location;
-        Terrain_Resource.terrain_textures.push_back(Texture(Renderer, "..//SDL2//textures//"+location));
-    }
-    std::ifstream minimap("..//SDL2//textures//minimap.txt");
-    if (!minimap.good()) {
-        printf("Can't open tiles.txt.\n");
-        success=false;
-    }
-    std::string waste;
-    for(int i=0;i<5;i++) {
-        minimap >> waste;
-    }
-    while(!minimap.eof()) {
-        minimap >> name;
-        minimap >> value;
-        minimap >> width;
-        minimap >> height;
-        minimap >> location;
-        minimap_textures.push_back(Texture(Renderer, "..//SDL2//textures//"+location));
-    }
-    return success;
+    textures=alltextures;
+    return true;
 }
 
-bool initTiles(std::vector<std::pair<std::string,std::vector<std::string>>> &tiles) {
-    bool success=true;
-    std::ifstream f_tiles("..//SDL2//textures//tiles.txt");
+bool initTiles(std::map<std::string,Tile> &alltiles) {
+    std::ifstream f_tiles("../SDL2_project/assets/tilesnew.txt");
     if (!f_tiles.good()) {
         printf("Can't open tiles.txt.\n");
-        success=false;
+        return false;
     }
-    std::string name;
-    std::vector<std::string> resources;
+    std::string buffer, name;
     while(!f_tiles.eof()) {
-        f_tiles >> name;
-        if(name=="C") {
-            f_tiles >> name;
-            resources.push_back(name);
+        f_tiles>>buffer; 
+        if(buffer[0]=='<') {
+            name=buffer;
+            name.replace(name.begin(),name.begin()+1,"");
+            alltiles.insert(std::pair<std::string,Tile>(name,Tile(name)));
         }
-        else {
-            f_tiles >> name;
-            tiles.push_back(std::make_pair(name,resources));
-            resources.clear();
+        else if(buffer[0]=='>') {
+            buffer.replace(buffer.begin(),buffer.begin()+1,"");
+            if(buffer=="capacity") {
+                f_tiles>>buffer;
+                alltiles.find(name)->second.setCapacity(std::atoi(buffer.c_str()));
+            }
+            else if(buffer=="mobility") {
+                f_tiles>>buffer;
+                alltiles.find(name)->second.setMobility(std::atoi(buffer.c_str()));
+            }
+            else if(buffer=="level") {
+                f_tiles>>buffer;
+                alltiles.find(name)->second.setLevel(std::atoi(buffer.c_str()));
+            }
+            else if(buffer=="below") {
+                f_tiles>>buffer;
+                alltiles.find(name)->second.setBelow(buffer);
+            }
         }
     }
     return true;
@@ -229,112 +222,47 @@ bool initTiles(std::vector<std::pair<std::string,std::vector<std::string>>> &til
 
 //---------Map_Functions------------------------
 
-bool map_parse(std::vector<std::pair<std::string,std::vector<std::string>>> tiles, std::vector<Tile> &map_info, std::vector<std::pair<int,std::pair<int,int>>> &tiles1, std::string location) {
-    bool success=true;
+bool map_parse(std::map<std::string,Tile> alltiles, std::vector<Tile> &map_info, std::string location, std::map<std::string,std::vector<Texture>> &textures1) {
+    int w, h;
     std::ifstream map(location);
     if (!map.good()) {
         printf("Can't open map.txt.\n");
-        success=false;
+        return false;
     }
     int x=0;int y=0;
-    int x_m=0; int y_m=0;
-    std::string value;
+    std::map<int,std::string> maps;
+    std::string value,name;
+    map >> w;
+    map >> h;
     while(!map.eof()) {
         map >> value;
-        if(value!="/") {
+        if(value[0]=='>') {
+            value.replace(value.begin(),value.begin()+1,"");
+            name=value;
+            map>>value;
+            maps.insert(std::pair<int,std::string>(std::atoi(name.c_str()),value));
+        }
+        else if(value!="/") {
             int value_=std::atoi(value.c_str());
-            map_info.push_back(Tile(tiles[value_].first,value_,x,y));
-            if(value_!=1) {
-                tiles1.push_back(std::make_pair(0,std::make_pair(x_m,y_m)));
-            }
-            else {
-                tiles1.push_back(std::make_pair(1,std::make_pair(x_m,y_m)));
-            }
-            x+=100;
-            x_m+=9;
+            std::string value1= maps.find(value_)->second;
+            int random=rand()%(textures1.find(value1)->second.size());
+            Tile t(alltiles.find(value1)->second,random,x,y);
+            map_info.push_back(t);
+            x+=50;
         }
         else {
             if(x%100==0) {
-                x=50;
-                x_m=5;
+                x=25;
             }
             else {
                 x=0;
-                x_m=0;
             }
-            y+=56;
-            y_m+=6;
+            y+=28;
         }
     }
-    int width=30;
-    int height=30;
-    int co_x,co_y;
-    std::vector<int> beach;
-    for(int i=0; i<map_info.size(); i++) {
-        beach.clear();
-        if(map_info[i].returnName()=="ocean") {
-            co_x=i%width;
-            co_y=i/width;
-            if(co_y%2==1) {
-                if((co_y>0 && map_info[co_x+(co_y-1)*width].returnName()!="ocean") && (co_y>0 && co_x<30 && map_info[co_x+1+(co_y-1)*width].returnName()!="ocean")) {
-                    beach.push_back(10);
-                    beach.push_back(11);
-                }
-                else if(co_y>0 && map_info[co_x+(co_y-1)*width].returnName()!="ocean") {
-                    beach.push_back(16);
-                }
-                else if(co_y>0 && co_x<30 && map_info[co_x+1+(co_y-1)*width].returnName()!="ocean") {
-                    beach.push_back(17);
-                }
-                if(co_y<30 && co_x<30 && map_info[co_x+1+(co_y+1)*width].returnName()!="ocean" && co_y<30 && map_info[co_x+(co_y+1)*width].returnName()!="ocean") {
-                    beach.push_back(13);
-                    beach.push_back(14);
-                }
-                else if(co_y<30 && co_x<30 && map_info[co_x+1+(co_y+1)*width].returnName()!="ocean") {
-                    beach.push_back(18);
-                }
-                else if(co_y<30 && map_info[co_x+(co_y+1)*width].returnName()!="ocean") {
-                    beach.push_back(19);
-                }
-                if(co_x>0 && map_info[co_x-1+co_y*width].returnName()!="ocean") {
-                    beach.push_back(15);
-                }
-                if(co_x<30 && map_info[co_x+1+co_y*width].returnName()!="ocean") {
-                    beach.push_back(12);
-                }
-            }
-            else {
-                if((co_y>0 && co_x>0 && map_info[co_x-1+(co_y-1)*width].returnName()!="ocean") && (co_y>0 && map_info[co_x+(co_y-1)*width].returnName()!="ocean")) {
-                    beach.push_back(10);
-                    beach.push_back(11);
-                }
-                else if(co_y>0 && co_x>0 && map_info[co_x-1+(co_y-1)*width].returnName()!="ocean") {
-                    beach.push_back(16);
-                }
-                else if(co_y>0 && map_info[co_x+(co_y-1)*width].returnName()!="ocean") {
-                    beach.push_back(17);
-                }
-                if(co_y<30 && map_info[co_x+(co_y+1)*width].returnName()!="ocean" && co_y<30 && co_x>0 && map_info[co_x-1+(co_y+1)*width].returnName()!="ocean") {
-                    beach.push_back(13);
-                    beach.push_back(14);
-                }
-                else if(co_y<30 && map_info[co_x+(co_y+1)*width].returnName()!="ocean") {
-                    beach.push_back(18);
-                }
-                else if(map_info[co_x-1+(co_y+1)*width].returnName()!="ocean") {
-                    beach.push_back(19);
-                }
-                if(co_x>0 && map_info[co_x-1+co_y*width].returnName()!="ocean") {
-                    beach.push_back(15);
-                }
-                if(co_x<30 && map_info[co_x+1+co_y*width].returnName()!="ocean") {
-                    beach.push_back(12);
-                }
-            }
-            map_info[i].setBeaches(beach);
-        }
-    }
+    return true;
 }
+
 
 //---------Camera_Functions------------------------
 
@@ -402,40 +330,57 @@ void close() {
 
 //this function moves the camera when the user hovers over the edge of the map
 
-void move_camera(Mouse_Resources &Mouse_Resource) {
+bool move_camera(Mouse_Resources &Mouse_Resource) {
+    bool moved=0;
     if(Mouse_Resource.x<10){//Moves Left based on proximity to edge
         Mouse_Resource.x_modifier+=2;
+        moved=1;
     }
     else if(Mouse_Resource.x<20){//Moves Left based on proximity to edge
         Mouse_Resource.x_modifier+=1;
+        moved=1;
     }
     if(Mouse_Resource.x>SCREEN_WIDTH-10) {//Moves Right based on proximity to edge
         Mouse_Resource.x_modifier-=2;
+        moved=1;
     }
     else if(Mouse_Resource.x>SCREEN_WIDTH-20) {//Moves Right based on proximity to edge
         Mouse_Resource.x_modifier-=1;
+        moved=1;
     }
     if(Mouse_Resource.y<40 && Mouse_Resource.y>30) {//Moves Up based on proximity to edge
         Mouse_Resource.y_modifier+=2;
+        moved=1;
     }
     else if(Mouse_Resource.y<50 && Mouse_Resource.y>30) {//Moves Up based on proximity to edge
         Mouse_Resource.y_modifier+=1;
+        moved=1;
     }
     if(Mouse_Resource.y>SCREEN_HEIGHT-10) {//Moves Down based on proximity to edge
         Mouse_Resource.y_modifier-=2;
+        moved=1;
     }
     else if(Mouse_Resource.y>SCREEN_HEIGHT-20) {//Moves Down based on proximity to edge
         Mouse_Resource.y_modifier-=1;
+        moved=1;
     }
     if(Mouse_Resource.y_modifier>0) { //Prevents the user from leaving the map
         Mouse_Resource.y_modifier=0;
+        moved=1;
     }
     if(Mouse_Resource.x_modifier>0) { //Prevents the user from leaving the map
         Mouse_Resource.x_modifier=0;
+        moved=1;
+    }
+    if(Mouse_Resource.x_modifier<-50*50-25+SCREEN_WIDTH) {
+        Mouse_Resource.x_modifier=-50*50-25+SCREEN_WIDTH;
+    }
+    if(Mouse_Resource.y_modifier<-50*28-42+SCREEN_HEIGHT) {
+        Mouse_Resource.y_modifier=-50*28-42+SCREEN_HEIGHT;
     }
 }
 
-void change_zoom(std::vector<Tile> &map_info, int &width, int &height) {
+void change_zoom(Terrain_Resources terrain_resources, std::vector<Tile> &map_info, int &width, int &height) {
     int new_w, old_w, new_h, old_h; //storage for new and old
 
     old_w=width;
@@ -443,8 +388,8 @@ void change_zoom(std::vector<Tile> &map_info, int &width, int &height) {
 
     int old_y=old_h*.7;
 
-    new_w=100*SCROLL_DEPTH/100;
-    new_h=80*SCROLL_DEPTH/100;
+    new_w=terrain_resources.width*SCROLL_DEPTH/100;
+    new_h=terrain_resources.height*SCROLL_DEPTH/100;
 
     int new_y=new_h*.7;
 
@@ -466,10 +411,46 @@ void change_zoom(std::vector<Tile> &map_info, int &width, int &height) {
     }
 }
 
+std::string getLower(std::map<std::string,Tile> tiles, Tile tile, int j) {
+    while(tiles.find(tile.returnName())->second.returnLevel()>j) {
+        tile=tiles.find(tile.returnBelow())->second;
+    }
+    return tile.returnName();
+}
+
+void create_map_layers(Texture &layers, Texture &minimap, Terrain_Resources &Terrain_Resource, Mouse_Resources &Mouse_Resource,std::map<std::string,std::vector<Texture>> textures,std::map<std::string,Tile> tiles) {
+    SDL_SetRenderDrawColor(Renderer,0,0,0,255);
+    minimap.createBlank(Renderer,(50*50+25)/5,(50*28+12)/5,SDL_TEXTUREACCESS_TARGET);
+    layers.createBlank(Renderer,(50*50+25),(50*28+12),SDL_TEXTUREACCESS_TARGET);
+    std::string name; Tile tile; int placex, placey;
+    SDL_Rect l = {0,0,50*50+25,50*28+12};
+    layers.setAsRenderTarget(Renderer);
+    SDL_RenderFillRect(Renderer,&l);
+    l.w=l.w/5;
+    l.h=l.h/5;
+    for(int i=0;i<Terrain_Resource.terrain_individual_information.size();i++) {
+        name=Terrain_Resource.terrain_individual_information[i].returnName();
+        tile=Terrain_Resource.terrain_individual_information[i];
+        placex=tile.returnX()+Mouse_Resource.x_modifier;
+        placey=tile.returnY()+Mouse_Resource.y_modifier+Terrain_Resource.height-textures.find(name)->second[tile.returnIndex()].getHeight();
+        textures.find(name)->second[tile.returnIndex()].render(Renderer,placex,placey);
+    }
+    minimap.setAsRenderTarget(Renderer);
+    SDL_RenderFillRect(Renderer,&l);
+    SDL_Rect rect = {0,0,(50*50+25)/5,(50*28+12)/5};
+    layers.renderRect(Renderer,&rect,NULL);
+    SDL_SetRenderTarget(Renderer,NULL);
+    SDL_SetRenderDrawColor(Renderer,255,255,255,255);
+}
+
 int main(int argc, char* args[]) {
     Mouse_Resources Mouse_Resource;
     Terrain_Resources Terrain_Resource;
-    Minimap_Resources Minimap_Resource;
+    std::map<std::string,std::vector<Texture>> textures;
+    std::map<std::string,Tile> tiles;
+    Texture minimap;
+    Texture layers;
+    srand(time(NULL));
     if(!initConfig()) {//Loads basic settings
         printf( "Failed to initialize config!\n" );
     }
@@ -482,11 +463,11 @@ int main(int argc, char* args[]) {
                 printf("Failed to initialize window!\n");
             }
             else {
-                if(!initTextures(Terrain_Resource, Minimap_Resource.minimap_textures)) { //Loads all textures
+                if(!initTextures(textures)) { //Loads all textures
                     printf( "Failed to load textures!\n" );
                 }
                 else {
-                    if(!initTiles(Terrain_Resource.terrain_type_information)) {
+                    if(!initTiles(tiles)) {
                         printf("Failed to load tiles!\n");
                     }
                     else {
@@ -525,6 +506,8 @@ int main(int argc, char* args[]) {
                         map.h=SCREEN_HEIGHT-30;
 
                         SDL_Rect minimap_selector;
+                        SDL_Rect map22;
+                        SDL_Rect map33;
 
                         //Window Initializations
                         Window Terrain_Info(Renderer,100,100,100,100);
@@ -534,18 +517,19 @@ int main(int argc, char* args[]) {
                         Checkbox test(Renderer,"button",0,0);
                         test.setHeight(26);
                         test.setWidth(26);
+                        std::string name1;
 
                         //TTF Initializations
-                        TTF_Font* Font=NULL;
-                        Font=TTF_OpenFont("../SDL2/ttf/default.ttf", 12);
-                        if(Font == NULL ) {
-                            printf( "Failed to load lazy font! SDL_ttf Error: %s\n", TTF_GetError() );
-                        }
+                        //TTF_Font* Font=NULL;
+                        //Font=TTF_OpenFont("../SDL2_project/assets/ttf/default.ttf", 12);
+                        //if(Font == NULL ) {
+                            //printf( "Failed to load lazy font! SDL_ttf Error: %s\n", TTF_GetError() );
+                        //}
                         SDL_Color textColor = {0, 0, 0};
 
                         //Map Initialization
-                        map_parse(Terrain_Resource.terrain_type_information, Terrain_Resource.terrain_individual_information,Minimap_Resource.minimap_information,"..//SDL2//map.txt");
-                        SDL_SetRenderDrawBlendMode(Renderer,SDL_BLENDMODE_BLEND);
+                        map_parse(tiles, Terrain_Resource.terrain_individual_information,"..//SDL2_project//map.map",textures);
+                        create_map_layers(layers, minimap,Terrain_Resource,Mouse_Resource,textures,tiles);
 
                         std::vector<std::string> resources;
 
@@ -556,7 +540,18 @@ int main(int argc, char* args[]) {
                         bool down=false;
 
 
+                        Tile tile;
+
+                        int numFrames = 0;
+                        int placex,placey;
+                        bool moved;
+                        Uint32 startTime;
+                        Uint32 endTime;
+                        const Uint8* currentKeyStates;
+                        SDL_Rect window0_rect;
+
                         while(!quit) {
+                            startTime = SDL_GetTicks();
                             name=" ";
                             overlap=false;
                             down=false;
@@ -564,11 +559,12 @@ int main(int argc, char* args[]) {
                             //Check collisions
                             SDL_GetMouseState(&Mouse_Resource.x,&Mouse_Resource.y);
                             getMouseLocation(Mouse_Resource,Terrain_Resource.width, Terrain_Resource.height);
-                            move_camera(Mouse_Resource);
+                            moved=move_camera(Mouse_Resource);
                             overlap=Terrain_Info.returnInside();
 
+
                             while( SDL_PollEvent( &e ) != 0 ) {
-                                const Uint8* currentKeyStates = SDL_GetKeyboardState( NULL );
+                                currentKeyStates = SDL_GetKeyboardState( NULL );
                                 Terrain_Info.handleEvent(&e);
                                 Map.handleEvent(&e);
                                 test.handleEvent(&e);
@@ -598,7 +594,7 @@ int main(int argc, char* args[]) {
                                     SCROLL_DEPTH=100;
                                 }
                                 if(resize) {
-                                    change_zoom(Terrain_Resource.terrain_individual_information,Terrain_Resource.width,Terrain_Resource.height);
+                                    change_zoom(Terrain_Resource, Terrain_Resource.terrain_individual_information,Terrain_Resource.width,Terrain_Resource.height);
                                 }
                                 resize=false;
                             }
@@ -619,54 +615,58 @@ int main(int argc, char* args[]) {
 
                             //Map Viewport
                             SDL_RenderSetViewport(Renderer,&map);
-                            for(int i=0;i<Terrain_Resource.terrain_individual_information.size();i++) {
-                                if(Terrain_Resource.terrain_individual_information[i].returnX()+Mouse_Resource.x_modifier>=-(Terrain_Resource.size) && Terrain_Resource.terrain_individual_information[i].returnX()+Mouse_Resource.x_modifier<SCREEN_WIDTH && Terrain_Resource.terrain_individual_information[i].returnY()+Mouse_Resource.y_modifier>=(-Terrain_Resource.size) && Terrain_Resource.terrain_individual_information[i].returnY()+Mouse_Resource.y_modifier<SCREEN_HEIGHT) {
-                                    Terrain_Resource.terrain_textures[Terrain_Resource.terrain_individual_information[i].returnIndex()].render(Renderer, Terrain_Resource.terrain_individual_information[i].returnX()+Mouse_Resource.x_modifier, Terrain_Resource.terrain_individual_information[i].returnY()+Mouse_Resource.y_modifier, Terrain_Resource.width, Terrain_Resource.height);
-                                    if(Terrain_Resource.terrain_individual_information[i].returnName()=="ocean") {
-                                        std::vector<int> beach=Terrain_Resource.terrain_individual_information[i].returnBeaches();
-                                        for(int j=0; j<beach.size();j++) {
-                                            Terrain_Resource.terrain_textures[beach[j]].render(Renderer, Terrain_Resource.terrain_individual_information[i].returnX()+Mouse_Resource.x_modifier, Terrain_Resource.terrain_individual_information[i].returnY()+Mouse_Resource.y_modifier, Terrain_Resource.width, Terrain_Resource.height);
-                                        }
-                                    }
+                            /*for(int i=0;i<Terrain_Resource.terrain_individual_information.size();i++) {
+                                name=Terrain_Resource.terrain_individual_information[i].returnName();
+                                tile=Terrain_Resource.terrain_individual_information[i];
+                                placex=tile.returnX()+Mouse_Resource.x_modifier;
+                                placey=tile.returnY()+Mouse_Resource.y_modifier+Terrain_Resource.height-textures.find(name)->second[tile.returnIndex()].getHeight();
+                                if(placex+50>0 && placey+50>0 && placex<map.w && placey<map.h) {
+                                        textures.find(name)->second[tile.returnIndex()].render(Renderer,placex,placey);
                                     if(test.getActivate()) {
-                                        Terrain_Resource.terrain_textures[9].render(Renderer, Terrain_Resource.terrain_individual_information[i].returnX()+Mouse_Resource.x_modifier, Terrain_Resource.terrain_individual_information[i].returnY()+Mouse_Resource.y_modifier, Terrain_Resource.width, Terrain_Resource.height);
-                                    }
+                                        textures.find("random")->second[0].render(Renderer, placex, placey, Terrain_Resource.width, Terrain_Resource.height);                               }
                                     if(!overlap) {
                                         if(Terrain_Resource.terrain_individual_information[i].returnY()==Mouse_Resource.tile_location_y && Terrain_Resource.terrain_individual_information[i].returnX()==Mouse_Resource.tile_location_x) {
-                                            Terrain_Resource.terrain_textures[8].render(Renderer, Terrain_Resource.terrain_individual_information[i].returnX()+Mouse_Resource.x_modifier, Terrain_Resource.terrain_individual_information[i].returnY()+Mouse_Resource.y_modifier, Terrain_Resource.width, Terrain_Resource.height);
+                                            textures.find("ui")->second[1].render(Renderer, placex, placey);
                                             name=Terrain_Resource.terrain_individual_information[i].returnName();
                                             resources=Terrain_Resource.terrain_individual_information[i].returnCommodities();
                                         }
                                     }
                                 }
-                            }
+                            }*/
+                            map22.x-=Mouse_Resource.x_modifier;
+                            map22.y-=Mouse_Resource.y_modifier;
+                            map22.w=map.w;
+                            map22.h=map.h;
+                            map33= map;
+                            map33.y=0;
+
+                            layers.renderRect(Renderer,&map33,&map22);
                             //Screen Viewport
                             SDL_RenderSetViewport(Renderer, &screen);
                             Terrain_Info.render(Renderer);
                             Map.render(Renderer);
-                            SDL_Rect window0_rect=Terrain_Info.returnUsuableViewport();
+                            window0_rect=Terrain_Info.returnUsuableViewport();
                             SDL_RenderSetViewport(Renderer,&window0_rect);
-                            int counter = loadFromRenderedText(Renderer,name,Font,textColor,0,0);
-                            if(resources.size()>0) {
-                                for(int i=0; i<resources.size();i++) {
-                                    counter+=loadFromRenderedText(Renderer,resources[i],Font,textColor,0,counter);
-                                }
-                            }
+                            //int counter = loadFromRenderedText(Renderer,name,Font,textColor,0,0);
                             resources.clear();
                             window0_rect=Map.returnUsuableViewport();
                             SDL_RenderSetViewport(Renderer,&window0_rect);
-                            for(int i=0;i<Minimap_Resource.minimap_information.size();i++) {
-                                Minimap_Resource.minimap_textures[Minimap_Resource.minimap_information[i].first].render(Renderer,Minimap_Resource.minimap_information[i].second.first,Minimap_Resource.minimap_information[i].second.second,Minimap_Resource.size,Minimap_Resource.size);
-                            }
-                            minimap_selector={-Mouse_Resource.x_modifier/float(SCROLL_DEPTH)*9,-Mouse_Resource.y_modifier/float(Terrain_Resource.height)*8.5,map.w/float(Terrain_Resource.width)*9.5,float(map.h)/float(Terrain_Resource.height)*9};
+                            map22={0,0,std::min(window0_rect.w,(50*50+25)/5),std::min(window0_rect.h,(50*28+12)/5)};
+                            minimap_selector={-Mouse_Resource.x_modifier/5,-Mouse_Resource.y_modifier/5,map.w/5,map.h/5};
+                            minimap.renderRect(Renderer,&map22,&map22);
                             SDL_RenderDrawRect(Renderer,&minimap_selector);
                             SDL_RenderPresent(Renderer);
+                            numFrames++;
+                            endTime=SDL_GetTicks();
+                            if(endTime-startTime>0) {
+                                std::cout << 1000/(endTime-startTime) << " ";
+                            }
                         }
                     }
                 }
             }
         }
-    //Free resources and close SDL
+    //Free resources and close SDL2
     close();
     return 0;
     }
